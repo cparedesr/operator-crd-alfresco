@@ -16,7 +16,7 @@ spec:
       serviceAccountName: alfresco-operator-sa
       containers:
         - name: operator
-          image: cparedesrou/operator-crd-alfresco:1.0
+          image: cparedesrou/operator-crd-alfresco:2.5
           env:
             - name: KUBERNETES_SERVICE_HOST
               value: "kubernetes.default.svc"
@@ -79,6 +79,70 @@ spec:
                       type: string
                   service_type:
                     type: string
+                  readinessProbe:
+                    type: object
+                    properties:
+                      httpGet:
+                        type: object
+                        properties:
+                          path:
+                            type: string
+                          port:
+                            type: integer
+                      exec:
+                        type: object
+                        properties:
+                          command:
+                            type: array
+                            items:
+                              type: string
+                      tcpSocket:
+                        type: object
+                        properties:
+                          port:
+                            type: integer
+                      initialDelaySeconds:
+                        type: integer
+                      periodSeconds:
+                        type: integer
+                      failureThreshold:
+                        type: integer
+                      timeoutSeconds:
+                        type: integer
+                      successThreshold:
+                        type: integer
+                  livenessProbe:
+                    type: object
+                    properties:
+                      httpGet:
+                        type: object
+                        properties:
+                          path:
+                            type: string
+                          port:
+                            type: integer
+                      exec:
+                        type: object
+                        properties:
+                          command:
+                            type: array
+                            items:
+                              type: string
+                      tcpSocket:
+                        type: object
+                        properties:
+                          port:
+                            type: integer
+                      initialDelaySeconds:
+                        type: integer
+                      periodSeconds:
+                        type: integer
+                      failureThreshold:
+                        type: integer
+                      timeoutSeconds:
+                        type: integer
+                      successThreshold:
+                        type: integer
   scope: Namespaced
   names:
     plural: alfrescos
