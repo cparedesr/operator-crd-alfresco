@@ -87,7 +87,8 @@ def create_resource(service_name, service_spec, namespace, logger):
                 name=f"port-{p.split(':')[1]}",
                 port=int(p.split(":")[1]),
                 target_port=int(p.split(":")[1])
-            ) for p in service_spec.get('ports', [])]
+            ) for p in service_spec.get('ports', [])],
+            type=service_spec.get('service_type')
         )
     )
     
