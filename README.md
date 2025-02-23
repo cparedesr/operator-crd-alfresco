@@ -74,6 +74,9 @@ Durante el despliegue de nuestro Alfresco, el pod de Alfresco se reinicia una ve
 
 El tipo de los servicios es configurable en el fichero YAML de nuestro Alfresco (ClusterIP, NodePort y LoadBalancer). Los servicios de Alfresco, Share y Solr están configurados como NodePort.
 
+4. **Namespace**:
+Todos los servicios se despliega en el namespace por default, se peude cambiar perfectamente de namespace en lo ficheros yml, y en la última linea de nuestro fichero de python.
+
 ## Próximas versiones del controlador
 Implementación del Secret correspondiente para poder descargar imágenes de un repositorio privado. Por el momento, solo se pueden descargar de Docker Hub.
 
