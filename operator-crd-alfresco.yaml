@@ -16,7 +16,7 @@ spec:
       serviceAccountName: alfresco-operator-sa
       containers:
         - name: operator
-          image: cparedesrou/operator-crd-alfresco:2.5
+          image: cparedesrou/operator-crd-alfresco:3.4
           env:
             - name: KUBERNETES_SERVICE_HOST
               value: "kubernetes.default.svc"
@@ -143,6 +143,19 @@ spec:
                         type: integer
                       successThreshold:
                         type: integer
+                  volumes:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        mountPath:
+                          type: string
+                        existingClaim:
+                          type: string
+                        storageClass:
+                          type: string
   scope: Namespaced
   names:
     plural: alfrescos

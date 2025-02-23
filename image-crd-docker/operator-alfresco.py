@@ -19,7 +19,10 @@ from kubernetes.client import (
     V1Probe,
     V1HTTPGetAction,
     V1ExecAction,
-    V1TCPSocketAction
+    V1TCPSocketAction,
+    V1Volume, 
+    V1VolumeMount,
+    V1PersistentVolumeClaimVolumeSource
 )
 
 def create_resource(service_name, service_spec, namespace, logger):
@@ -31,9 +34,6 @@ def create_resource(service_name, service_spec, namespace, logger):
             run_as_group=999,
             allow_privilege_escalation=False
         )
-    
-    # Usar 'args' en lugar de 'command' para conservar el entrypoint predeterminado
-    container_args = service_spec.get('command', [])
     
     # Configurar los puertos del contenedor
     container_ports = [V1ContainerPort(container_port=int(p)) for p in service_spec.get('ports', [])]
@@ -48,11 +48,31 @@ def create_resource(service_name, service_spec, namespace, logger):
     if 'livenessProbe' in service_spec:
         liveness_probe = create_probe(service_spec['livenessProbe'])
     
+    # Configurar volúmenes y montajes
+    volumes = []
+    volume_mounts = []
+    if 'volumes' in service_spec:
+        for volume_spec in service_spec['volumes']:
+            volume_name = volume_spec.get('name')
+            mount_path = volume_spec.get('mountPath')
+            existing_claim = volume_spec.get('existingClaim')
+            
+            if existing_claim:
+                # Usar un PersistentVolumeClaim existente
+                volumes.append(V1Volume(
+                    name=volume_name,
+                    persistent_volume_claim=V1PersistentVolumeClaimVolumeSource(claim_name=existing_claim)
+                ))
+                volume_mounts.append(V1VolumeMount(
+                    name=volume_name,
+                    mount_path=mount_path
+                ))
+    
     container = V1Container(
         name=service_name,
         image=service_spec.get('image'),
         env=[V1EnvVar(name=k, value=v) for k, v in service_spec.get('environment', {}).items()],
-        args=container_args,
+        args=service_spec.get('command', []),
         resources=V1ResourceRequirements(
             limits=service_spec.get('resources', {}).get('limits', {}),
             requests=service_spec.get('resources', {}).get('requests', {})
@@ -60,10 +80,11 @@ def create_resource(service_name, service_spec, namespace, logger):
         ports=container_ports,
         security_context=container_security_context,
         readiness_probe=readiness_probe,
-        liveness_probe=liveness_probe
+        liveness_probe=liveness_probe,
+        volume_mounts=volume_mounts
     )
     
-    # Configurar securityContext a nivel del Pod para forzar el UID
+    # Configurar securityContext a nivel del Pod
     pod_security_context = None
     if "postgres" in service_spec.get('image', '').lower():
         pod_security_context = V1PodSecurityContext(
@@ -75,7 +96,8 @@ def create_resource(service_name, service_spec, namespace, logger):
     
     pod_spec = V1PodSpec(
         containers=[container],
-        security_context=pod_security_context
+        security_context=pod_security_context,
+        volumes=volumes
     )
     
     deployment = V1Deployment(
@@ -92,7 +114,7 @@ def create_resource(service_name, service_spec, namespace, logger):
         )
     )
     
-    # Crear el Service con los puertos especificados
+    # Crear el Service
     service_ports = [V1ServicePort(
         name=f"port-{p}",
         port=int(p),
@@ -106,7 +128,7 @@ def create_resource(service_name, service_spec, namespace, logger):
         spec=V1ServiceSpec(
             selector={"app": service_name},
             ports=service_ports,
-            type=service_spec.get('service_type', 'ClusterIP')  # Usar ClusterIP por defecto
+            type=service_spec.get('service_type', 'ClusterIP')
         )
     )
     
