@@ -418,4 +418,4 @@ def delete_alfresco(spec, name, namespace, logger, **kwargs):
 
 
 if __name__ == "__main__":
-    kopf.run(namespaces=["default"])
+    kopf.run(namespaces=["alfresco"])
