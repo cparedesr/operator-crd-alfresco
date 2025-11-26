@@ -1,252 +1,251 @@
 apiVersion: alfresco.community.com/v1
 kind: Alfresco
 metadata:
-    name: alfresco-community
-    namespace: default
+  name: alfresco-community
+  namespace: alfresco
 spec:
+  alfresco:
+    name: alfresco-content
+    replicas: 1
+    image: docker.io/alfresco/alfresco-content-repository-community:25.3.0
+    serviceAccountName: alfresco-k8s-sa
+    resources:
+      limits:
+        memory: "1900Mi"
+        cpu: "2"
+      requests:
+        memory: "1024Mi"
+        cpu: "1"
+    environment:
+      JAVA_TOOL_OPTIONS: >-
+        -Dencryption.keystore.type=JCEKS
+        -Dencryption.cipherAlgorithm=DESede/CBC/PKCS5Padding
+        -Dencryption.keyAlgorithm=DESede
+        -Dencryption.keystore.location=/usr/local/tomcat/shared/classes/alfresco/extension/keystore/keystore
+        -Dmetadata-keystore.password=mp6yc0UD9e
+        -Dmetadata-keystore.aliases=metadata
+        -Dmetadata-keystore.metadata.password=oKIWzVdEdA
+        -Dmetadata-keystore.metadata.algorithm=DESede
+      JAVA_OPTS: >-
+        -Ddb.driver=org.postgresql.Driver
+        -Ddb.username=alfresco
+        -Ddb.password=alfresco
+        -Ddb.url=jdbc:postgresql://postgres-db:5432/alfresco
+        -Dsolr.host=solr-search
+        -Dsolr.port=8983
+        -Dsolr.http.connection.timeout=1000
+        -Dsolr.secureComms=secret
+        -Dsolr.sharedSecret=secret
+        -Dsolr.base.url=/solr
+        -Dindex.subsystem.name=solr6
+        -Dshare.host=localhost
+        -Dshare.port=8080
+        -Dalfresco.host=localhost
+        -Dalfresco.port=8080
+        -Dcsrf.filter.enabled=false
+        -Daos.baseUrlOverwrite=http://localhost:8080/alfresco/aos
+        -Dmessaging.broker.url="failover:(nio://activemq-broker:61616)?timeout=3000&jms.useCompression=true"
+        -Ddeployment.method=DOCKER_COMPOSE
+        -DlocalTransform.core-aio.url=http://transform-core-aio:8090/
+        -XX:MinRAMPercentage=50
+        -XX:MaxRAMPercentage=80
+    ports:
+      - "8080"
+    service_type: NodePort
+    readinessProbe:
+      httpGet:
+        path: /alfresco/api/-default-/public/alfresco/versions/1/probes/-ready-
+        port: 8080
+      initialDelaySeconds: 50
+      periodSeconds: 10
+      failureThreshold: 1
+      timeoutSeconds: 5
+    livenessProbe:
+      httpGet:
+        path: /alfresco/api/-default-/public/alfresco/versions/1/probes/-live-
+        port: 8080
+      initialDelaySeconds: 60
+      periodSeconds: 10
+      failureThreshold: 1
+      timeoutSeconds: 5
+    volumes:
+      - name: alfresco-data
+        mountPath: /usr/local/tomcat/alf_data
+        existingClaim: alfresco-storage-pvc
 
-    alfresco:
-        name: alfresco-content
-        replicas: 1
-        image: docker.io/alfresco/alfresco-content-repository-community:23.4.1
-        resources:
-            limits:
-                memory: "1900Mi"
-                cpu: "2"
-            requests:
-                memory: "1024Mi"
-                cpu: "1"
-        environment:
-            JAVA_TOOL_OPTIONS: >-
-                -Dencryption.keystore.type=JCEKS
-                -Dencryption.cipherAlgorithm=DESede/CBC/PKCS5Padding
-                -Dencryption.keyAlgorithm=DESede
-                -Dencryption.keystore.location=/usr/local/tomcat/shared/classes/alfresco/extension/keystore/keystore
-                -Dmetadata-keystore.password=mp6yc0UD9e
-                -Dmetadata-keystore.aliases=metadata
-                -Dmetadata-keystore.metadata.password=oKIWzVdEdA
-                -Dmetadata-keystore.metadata.algorithm=DESede
-            JAVA_OPTS: >-
-                -Ddb.driver=org.postgresql.Driver
-                -Ddb.username=alfresco
-                -Ddb.password=alfresco
-                -Ddb.url=jdbc:postgresql://postgres-db:5432/alfresco
-                -Dsolr.host=solr-search
-                -Dsolr.port=8983
-                -Dsolr.http.connection.timeout=1000
-                -Dsolr.secureComms=secret
-                -Dsolr.sharedSecret=secret
-                -Dsolr.base.url=/solr
-                -Dindex.subsystem.name=solr6
-                -Dshare.host=localhost
-                -Dshare.port=8080
-                -Dalfresco.host=localhost
-                -Dalfresco.port=8080
-                -Dcsrf.filter.enabled=false
-                -Daos.baseUrlOverwrite=http://localhost:8080/alfresco/aos
-                -Dmessaging.broker.url="failover:(nio://activemq-broker:61616)?timeout=3000&jms.useCompression=true"
-                -Ddeployment.method=DOCKER_COMPOSE
-                -DlocalTransform.core-aio.url=http://transform-core-aio:8090/
-                -XX:MinRAMPercentage=50
-                -XX:MaxRAMPercentage=80
-        ports:
-            - "8080"
-        service_type: NodePort
-        readinessProbe:
-            httpGet:
-                path: /alfresco/api/-default-/public/alfresco/versions/1/probes/-ready-
-                port: 8080
-            initialDelaySeconds: 50
-            periodSeconds: 10
-            failureThreshold: 1
-            timeoutSeconds: 5
-        livenessProbe:
-            httpGet:
-                path: /alfresco/api/-default-/public/alfresco/versions/1/probes/-live-
-                port: 8080
-            initialDelaySeconds: 60
-            periodSeconds: 10
-            failureThreshold: 1
-            timeoutSeconds: 5
-        volumes:
-            - name: alfresco-data
-              mountPath: /usr/local/tomcat/alf_data
-              existingClaim: alfresco-storage-pvc
+  share:
+    name: share-app
+    replicas: 1
+    image: docker.io/alfresco/alfresco-share:25.3.0
+    resources:
+      limits:
+        memory: "1Gi"
+        cpu: "1"
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+    environment:
+      CSRF_FILTER_ORIGIN: http://localhost:8080
+      CSRF_FILTER_REFERER: http://localhost:8080/share/.*
+      REPO_HOST: "alfresco-content"
+      REPO_PORT: "8080"
+      JAVA_OPTS: >-
+        -XX:MinRAMPercentage=50
+        -XX:MaxRAMPercentage=80
+        -Dalfresco.host=localhost
+        -Dalfresco.port=8080
+        -Dalfresco.context=alfresco
+        -Dalfresco.protocol=http
+    ports:
+      - "8080"
+    service_type: NodePort
+    readinessProbe:
+      httpGet:
+        path: /share
+        port: 8080
+      initialDelaySeconds: 60
+      periodSeconds: 10
+      failureThreshold: 6
+      timeoutSeconds: 5
+    livenessProbe:
+      httpGet:
+        path: /share
+        port: 8080
+      initialDelaySeconds: 120
+      periodSeconds: 10
+      failureThreshold: 2
+      timeoutSeconds: 10
 
-    share:
-        name: share-app
-        replicas: 1
-        image: docker.io/alfresco/alfresco-share:23.4.1
-        resources:
-            limits:
-                memory: "1Gi"
-                cpu: "1"
-            requests:
-                memory: "512Mi"
-                cpu: "500m"
-        environment:
-            CSRF_FILTER_ORIGIN: http://localhost:8080
-            CSRF_FILTER_REFERER: http://localhost:8080/share/.*
-            REPO_HOST: "alfresco-content"
-            REPO_PORT: "8080"
-            JAVA_OPTS: >-
-                -XX:MinRAMPercentage=50
-                -XX:MaxRAMPercentage=80
-                -Dalfresco.host=localhost
-                -Dalfresco.port=8080
-                -Dalfresco.context=alfresco
-                -Dalfresco.protocol=http
-        ports:
-            - "8080"
-        service_type: NodePort
-        readinessProbe:
-            httpGet:
-                path: /share
-                port: 8080
-            initialDelaySeconds: 60
-            periodSeconds: 10
-            failureThreshold: 6
-            timeoutSeconds: 5
-        livenessProbe:
-            httpGet:
-                path: /share
-                port: 8080
-            initialDelaySeconds: 120
-            periodSeconds: 10
-            failureThreshold: 2
-            timeoutSeconds: 10
+  postgres:
+    name: postgres-db
+    replicas: 1
+    image: postgres:14.4
+    resources:
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+    environment:
+      POSTGRES_PASSWORD: alfresco
+      POSTGRES_USER: alfresco
+      POSTGRES_DB: alfresco
+    ports:
+      - "5432"
+    service_type: ClusterIP
+    readinessProbe:
+      exec:
+        command:
+          - /bin/sh
+          - -c
+          - "pg_isready -d alfresco -U alfresco -h 127.0.0.1 -p 5432"
+      initialDelaySeconds: 30
+      periodSeconds: 20
+      failureThreshold: 2
+      timeoutSeconds: 10
+    livenessProbe:
+      exec:
+        command:
+          - /bin/sh
+          - -c
+          - "pg_isready -d alfresco -U alfresco -h 127.0.0.1 -p 5432"
+      initialDelaySeconds: 140
+      periodSeconds: 20
+      failureThreshold: 1
+      timeoutSeconds: 10
 
+  activemq:
+    name: activemq-broker
+    replicas: 1
+    image: alfresco/alfresco-activemq:5.18-jre17-rockylinux8
+    resources:
+      limits:
+        memory: "2Gi"
+        cpu: "1"
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+    ports:
+      - "8161"
+      - "5672"
+      - "61616"
+      - "61613"
+    service_type: ClusterIP
+    readinessProbe:
+      exec:
+        command:
+          - /bin/sh
+          - -c
+          - "/opt/activemq/bin/activemq query --objname 'type=Broker,brokerName=*,service=Health' | grep Good"
+      initialDelaySeconds: 15
+      periodSeconds: 20
+      failureThreshold: 2
+      timeoutSeconds: 60
+    livenessProbe:
+      exec:
+        command:
+          - /bin/sh
+          - -c
+          - "/opt/activemq/bin/activemq query --objname 'type=Broker,brokerName=*,service=Health' | grep Good"
+      initialDelaySeconds: 120
+      periodSeconds: 20
+      failureThreshold: 1
+      timeoutSeconds: 10
 
-    postgres:
-        name: postgres-db
-        replicas: 1
-        image: postgres:14.4
-        resources:
-            limits:
-                memory: "512Mi"
-                cpu: "500m"
-            requests:
-                memory: "256Mi"
-                cpu: "250m"
-        environment:
-            POSTGRES_PASSWORD: alfresco
-            POSTGRES_USER: alfresco
-            POSTGRES_DB: alfresco
-        ports:
-            - "5432"
-        service_type: ClusterIP
-        readinessProbe:
-            exec:
-                command:
-                    - /bin/sh
-                    - -c
-                    - "pg_isready -d alfresco -U alfresco -h 127.0.0.1 -p 5432"
-            initialDelaySeconds: 30
-            periodSeconds: 20
-            failureThreshold: 2
-            timeoutSeconds: 10
-        livenessProbe:
-            exec:
-                command:
-                    - /bin/sh
-                    - -c
-                    - "pg_isready -d alfresco -U alfresco -h 127.0.0.1 -p 5432"
-            initialDelaySeconds: 140
-            periodSeconds: 20
-            failureThreshold: 1
-            timeoutSeconds: 10
+  transform-core-aio:
+    name: transform-core-aio
+    replicas: 1
+    image: alfresco/alfresco-transform-core-aio:5.1.6
+    resources:
+      limits:
+        memory: "1Gi"
+        cpu: "1"
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+    environment:
+      JAVA_OPTS: >-
+        -XX:MinRAMPercentage=50
+        -XX:MaxRAMPercentage=80
+    ports:
+      - "8090"
+    service_type: ClusterIP
 
-    activemq:
-        name: activemq-broker
-        replicas: 1
-        image: alfresco/alfresco-activemq:5.18-jre17-rockylinux8
-        resources:
-            limits:
-                memory: "2Gi"
-                cpu: "1"
-            requests:
-                memory: "512Mi"
-                cpu: "500m"
-        ports:
-            - "8161"
-            - "5672"
-            - "61616"
-            - "61613"
-        service_type: ClusterIP
-        readinessProbe:
-            exec:
-                command:
-                    - /bin/sh
-                    - -c
-                    - "/opt/activemq/bin/activemq query --objname 'type=Broker,brokerName=*,service=Health' | grep Good"
-            initialDelaySeconds: 15
-            periodSeconds: 20
-            failureThreshold: 2
-            timeoutSeconds: 60
-        livenessProbe:
-            exec:
-                command:
-                    - /bin/sh
-                    - -c
-                    - "/opt/activemq/bin/activemq query --objname 'type=Broker,brokerName=*,service=Health' | grep Good"
-            initialDelaySeconds: 120
-            periodSeconds: 20
-            failureThreshold: 1
-            timeoutSeconds: 10
-
-    transform-core-aio:
-        name: transform-core-aio
-        replicas: 1
-        image: alfresco/alfresco-transform-core-aio:5.1.6
-        resources:
-            limits:
-                memory: "1Gi"
-                cpu: "1"
-            requests:
-                memory: "512Mi"
-                cpu: "500m"
-        environment:
-            JAVA_OPTS: >-
-                -XX:MinRAMPercentage=50
-                -XX:MaxRAMPercentage=80
-        ports:
-            - "8090"
-        service_type: ClusterIP
-
-    solr-search:
-        name: solr-search
-        replicas: 1
-        image: docker.io/alfresco/alfresco-search-services:2.0.14
-        resources:
-            limits:
-                memory: "2Gi"
-                cpu: "1"
-            requests:
-                memory: "1Gi"
-                cpu: "250m"
-        environment:
-            SOLR_ALFRESCO_HOST: "alfresco-content"
-            SOLR_ALFRESCO_PORT: "8080"
-            SOLR_SOLR_HOST: "solr6"
-            SOLR_SOLR_PORT: "8983"
-            SOLR_CREATE_ALFRESCO_DEFAULTS: "alfresco,archive"
-            ALFRESCO_SECURE_COMMS: "secret"
-            JAVA_TOOL_OPTIONS: >-
-                -Dalfresco.secureComms.secret=secret
-        ports:
-            - "8983"
-        service_type: NodePort
-        readinessProbe:
-            tcpSocket:
-                port: 8983
-            initialDelaySeconds: 50
-            periodSeconds: 10
-            failureThreshold: 4
-            timeoutSeconds: 5
-        livenessProbe:
-            tcpSocket:
-                port: 8983
-            initialDelaySeconds: 60
-            periodSeconds: 10
-            failureThreshold: 4
-            timeoutSeconds: 10
+  solr-search:
+    name: solr-search
+    replicas: 1
+    image: docker.io/alfresco/alfresco-search-services:2.0.14
+    resources:
+      limits:
+        memory: "2Gi"
+        cpu: "1"
+      requests:
+        memory: "1Gi"
+        cpu: "250m"
+    environment:
+      SOLR_ALFRESCO_HOST: "alfresco-content"
+      SOLR_ALFRESCO_PORT: "8080"
+      SOLR_SOLR_HOST: "solr6"
+      SOLR_SOLR_PORT: "8983"
+      SOLR_CREATE_ALFRESCO_DEFAULTS: "alfresco,archive"
+      ALFRESCO_SECURE_COMMS: "secret"
+      JAVA_TOOL_OPTIONS: >-
+        -Dalfresco.secureComms.secret=secret
+    ports:
+      - "8983"
+    service_type: NodePort
+    readinessProbe:
+      tcpSocket:
+        port: 8983
+      initialDelaySeconds: 50
+      periodSeconds: 10
+      failureThreshold: 4
+      timeoutSeconds: 5
+    livenessProbe:
+      tcpSocket:
+        port: 8983
+      initialDelaySeconds: 60
+      periodSeconds: 10
+      failureThreshold: 4
+      timeoutSeconds: 10
