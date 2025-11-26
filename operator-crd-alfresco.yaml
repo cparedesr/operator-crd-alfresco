@@ -1,8 +1,157 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: alfresco
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: alfresco-operator-sa
+  namespace: alfresco
+
+---
+# ServiceAccount que usarán los pods de Alfresco para hablar con el API de Kubernetes
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: alfresco-k8s-sa
+  namespace: alfresco
+
+---
+# ClusterRole del operador (incluye CRDs y namespaces cluster-scope)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: alfresco-operator-role
+rules:
+  # Recursos core namespaced
+  - apiGroups: [""]
+    resources:
+      - pods
+      - services
+      - configmaps
+      - events
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+
+  # Namespaces (cluster-scope): Kopf los lista
+  - apiGroups: [""]
+    resources:
+      - namespaces
+    verbs:
+      - get
+      - list
+      - watch
+
+  # Deployments
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+
+  # Nuestro CRD Alfresco
+  - apiGroups: ["alfresco.community.com"]
+    resources:
+      - alfrescos
+      - alfrescos/status
+      - alfrescos/finalizers
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+
+  # CRDs (cluster-scope): Kopf los consulta al arrancar
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - get
+      - list
+      - watch
+
+  # Eventos (API nueva)
+  - apiGroups: ["events.k8s.io"]
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+      - update
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: alfresco-operator-clusterrolebinding
+subjects:
+  - kind: ServiceAccount
+    name: alfresco-operator-sa
+    namespace: alfresco
+roleRef:
+  kind: ClusterRole
+  name: alfresco-operator-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Permisos de solo lectura para Alfresco contra el API de Kubernetes (namespaced en 'alfresco')
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: alfresco-k8s-reader
+  namespace: alfresco
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - services
+      - configmaps
+      - endpoints
+      - namespaces
+    verbs:
+      - get
+      - list
+      - watch
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: alfresco-k8s-reader-binding
+  namespace: alfresco
+subjects:
+  - kind: ServiceAccount
+    name: alfresco-k8s-sa
+    namespace: alfresco
+roleRef:
+  kind: Role
+  name: alfresco-k8s-reader
+  apiGroup: rbac.authorization.k8s.io
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: alfresco-community-operator
-  namespace: default
+  namespace: alfresco
 spec:
   replicas: 1
   selector:
@@ -16,12 +165,9 @@ spec:
       serviceAccountName: alfresco-operator-sa
       containers:
         - name: operator
-          image: cparedesrou/operator-crd-alfresco:3.4
-          env:
-            - name: KUBERNETES_SERVICE_HOST
-              value: "kubernetes.default.svc"
-            - name: KUBERNETES_SERVICE_PORT
-              value: "443"
+          image: cparedesrou/operator-crd-alfresco:4.0.0
+          imagePullPolicy: IfNotPresent
+          env: []
           resources:
             limits:
               cpu: "500m"
@@ -29,42 +175,41 @@ spec:
             requests:
               cpu: "250m"
               memory: "256Mi"
+
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: alfresco-operator-clusterrolebinding
-subjects:
-  - kind: ServiceAccount
-    name: alfresco-operator-sa
-    namespace: default
-roleRef:
-  kind: ClusterRole
-  name: cluster-admin
-  apiGroup: rbac.authorization.k8s.io
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: alfresco-operator-sa
-  namespace: default              
----              
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: alfrescos.alfresco.community.com
 spec:
   group: alfresco.community.com
+  scope: Namespaced
+  names:
+    plural: alfrescos
+    singular: alfresco
+    kind: Alfresco
+    shortNames:
+      - alf
   versions:
     - name: v1
       served: true
       storage: true
+      subresources:
+        status: {}
       schema:
         openAPIV3Schema:
           type: object
+          description: Alfresco deployment compuesto por varios servicios (alfresco, share, postgres, etc.)
           properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
             spec:
               type: object
+              description: Mapa de componentes lógicos (alfresco, share, postgres, etc.)
               additionalProperties:
                 type: object
                 properties:
@@ -72,6 +217,7 @@ spec:
                     type: string
                   replicas:
                     type: integer
+                    minimum: 1
                   image:
                     type: string
                   resources:
@@ -104,6 +250,12 @@ spec:
                     items:
                       type: string
                   service_type:
+                    type: string
+                    enum:
+                      - ClusterIP
+                      - NodePort
+                      - LoadBalancer
+                  serviceAccountName:
                     type: string
                   readinessProbe:
                     type: object
@@ -182,10 +334,25 @@ spec:
                           type: string
                         storageClass:
                           type: string
-  scope: Namespaced
-  names:
-    plural: alfrescos
-    singular: alfresco
-    kind: Alfresco
-    shortNames:
-      - alf
+            status:
+              type: object
+              nullable: true
+              properties:
+                observedGeneration:
+                  type: integer
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastUpdateTime:
+                        type: string
+                        format: date-time
